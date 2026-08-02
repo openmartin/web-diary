@@ -1,0 +1,222 @@
+.diary-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: white;
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #eee;
+  background: #fafafa;
+}
+
+.editor-header h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.logout-btn {
+  padding: 8px 16px;
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.logout-btn:hover {
+  background: #e0e0e0;
+}
+
+.error,
+.success {
+  padding: 12px 24px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.error {
+  background: #fee;
+  color: #c00;
+  border-bottom: 1px solid #fcc;
+}
+
+.success {
+  background: #efe;
+  color: #060;
+  border-bottom: 1px solid #cfc;
+}
+
+.editor-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 250px;
+  border-right: 1px solid #eee;
+  padding: 20px;
+  overflow-y: auto;
+  background: #fafafa;
+}
+
+.sidebar > div {
+  margin-bottom: 24px;
+}
+
+.sidebar label {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.sidebar select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.new-date .input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.new-date input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.new-date button {
+  padding: 8px 12px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.new-date button:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.new-date button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.editor-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 20px;
+}
+
+.editor-main.loading {
+  justify-content: center;
+  align-items: center;
+  font-size: 16px;
+  color: #666;
+}
+
+.metadata {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.title-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.datetime-input {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.actions button {
+  padding: 10px 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.actions button:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.actions button.primary {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.actions button.primary:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.actions button.secondary {
+  background: #4CAF50;
+  color: white;
+  border-color: #4CAF50;
+}
+
+.actions button.secondary:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 150px;
+  }
+
+  .title-input {
+    min-width: 150px;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .actions button {
+    width: 100%;
+  }
+}
