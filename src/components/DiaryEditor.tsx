@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
-  App, Button, Card, DatePicker, Empty, Flex, Input, Layout, List, Select, Spin, Typography,
+  App, Button, Card, DatePicker, Empty, Flex, Layout, List, Select, Spin, Typography,
 } from 'antd';
 import {
-  CheckOutlined, CloudUploadOutlined, EditOutlined, FileTextOutlined,
+  CheckOutlined, CloudUploadOutlined, FileTextOutlined,
   GithubOutlined, LogoutOutlined, PlusOutlined, SaveOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -28,8 +28,6 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
   const [dates, setDates] = useState<string[]>([]);
   const [selectedYear, setSelectedYear] = useState(storage.getCurrentYear() || String(new Date().getFullYear()));
   const [selectedDate, setSelectedDate] = useState(storage.getCurrentDate() || '');
-  const [title, setTitle] = useState('');
-  const [dateTime, setDateTime] = useState('');
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -85,14 +83,9 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
     try {
       const raw = await gitOps.readFile(year, date);
       if (raw) {
-        const entry = parseFrontMatter(raw);
-        setTitle(entry.frontMatter.title);
-        setDateTime(entry.frontMatter.date);
-        setContent(entry.content);
+        setContent(raw);
       } else {
-        setTitle('');
-        setDateTime(new Date().toISOString());
-        setContent('');
+        setContent(generateFrontMatter(`${date} 日记`, dayjs()) + '\n');
       }
       setCreatingNew(false);
     } catch (err) {
@@ -102,13 +95,17 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
     }
   };
 
-  const handleNewDate = (date: Dayjs | null) => {
-    if (!date) return;
+  // Open an existing entry or create a new one for the given day
+  const openOrCreate = (date: Dayjs) => {
     const year = date.format('YYYY');
     const dateStr = date.format('YYYY-MM-DD');
 
-    // Picking an existing date in the current year: just open it
+    // Date already exists in the current year: open it instead of creating a duplicate
     if (year === selectedYear && dates.includes(dateStr)) {
+      if (dateStr === selectedDate && !creatingNew) {
+        message.info('今天的日记已经存在，直接编辑即可');
+        return;
+      }
       setCreatingNew(false);
       setSelectedDate(dateStr);
       return;
@@ -119,27 +116,34 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
     }
     setSelectedYear(year);
     setSelectedDate(dateStr);
-    setTitle(`${dateStr} 日记`);
-    setDateTime(new Date().toISOString());
-    setContent('');
+    setContent(generateFrontMatter(`${dateStr} 日记`, date) + '\n');
     setCreatingNew(true);
   };
 
+  const handleNewDate = (date: Dayjs | null) => {
+    if (date) openOrCreate(date);
+  };
+
+  // Quick action: create/open today's diary with the current timestamp
+  const handleQuickNew = () => {
+    openOrCreate(dayjs());
+  };
+
   const handleSaveDraft = () => {
-    storage.setDraft({ title, date: dateTime, content });
+    const { frontMatter } = parseFrontMatter(content);
+    storage.setDraft({ title: frontMatter.title, date: frontMatter.date, content });
     message.success('草稿已保存到本地');
   };
 
   const handleCommit = async () => {
-    if (!selectedDate || !title) {
-      message.warning('请先选择日期并填写标题');
+    const { frontMatter } = parseFrontMatter(content);
+    if (!selectedDate || !frontMatter.title.trim()) {
+      message.warning('请先选择日期，并在文件头中填写标题');
       return;
     }
     setSaving(true);
     try {
-      const frontMatter = generateFrontMatter(title, dateTime);
-      const fullContent = frontMatter + '\n' + content;
-      await gitOps.commit(`Add/Update diary: ${selectedDate}`, selectedYear, selectedDate, fullContent);
+      await gitOps.commit(`Add/Update diary: ${selectedDate}`, selectedYear, selectedDate, content);
       storage.clearDraft();
       if (!dates.includes(selectedDate)) {
         setDates((prev) => [...prev, selectedDate].sort());
@@ -185,6 +189,17 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
 
       <Layout>
         <Sider width={264} theme="light" className="editor-sider">
+          <Button
+            type="primary"
+            size="large"
+            block
+            icon={<PlusOutlined />}
+            onClick={handleQuickNew}
+            className="new-entry-btn"
+          >
+            新增今日日记
+          </Button>
+
           <div className="sider-block">
             <Text type="secondary" className="sider-label">年份</Text>
             <Select
@@ -196,7 +211,7 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
           </div>
 
           <div className="sider-block">
-            <Text type="secondary" className="sider-label">新建日记</Text>
+            <Text type="secondary" className="sider-label">或选择指定日期</Text>
             <DatePicker
               style={{ width: '100%' }}
               placeholder="选择日期开始写"
@@ -216,7 +231,10 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
               renderItem={(date) => (
                 <List.Item
                   className={date === selectedDate ? 'date-item date-item-active' : 'date-item'}
-                  onClick={() => setSelectedDate(date)}
+                  onClick={() => {
+                    setCreatingNew(false);
+                    setSelectedDate(date);
+                  }}
                 >
                   <FileTextOutlined className="date-item-icon" />
                   {date}
@@ -234,24 +252,11 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
           ) : (
             <Card className="editor-card" bordered={false}>
               <Flex vertical gap={16}>
-                <Flex gap={12} wrap="wrap">
-                  <Input
-                    className="title-input"
-                    size="large"
-                    prefix={<EditOutlined />}
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="给这篇日记起个标题…"
-                  />
-                  <DatePicker
-                    size="large"
-                    showTime
-                    value={dateTime ? dayjs(dateTime) : null}
-                    onChange={(d) => setDateTime(d ? d.toISOString() : new Date().toISOString())}
-                  />
-                </Flex>
-
-                <MarkdownEditor content={content} onChange={setContent} />
+                <MarkdownEditor
+                  content={content}
+                  onChange={setContent}
+                  fileName={selectedDate ? `${selectedDate}.md` : undefined}
+                />
 
                 <Flex justify="flex-end" gap={8} className="editor-actions">
                   <Button icon={<SaveOutlined />} onClick={handleSaveDraft} disabled={saving || pushing}>

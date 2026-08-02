@@ -1,3 +1,5 @@
+import dayjs, { type Dayjs } from 'dayjs';
+
 export interface FrontMatter {
   title: string;
   date: string;
@@ -9,11 +11,12 @@ export interface DiaryEntry {
   content: string;
 }
 
-export function generateFrontMatter(title: string, date: string): string {
+export function generateFrontMatter(title: string, date: Dayjs | string, draft: boolean = false): string {
+  const d = typeof date === 'string' ? dayjs(date) : date;
   return `---
 title: "${title}"
-date: ${date}
-draft: false
+date: ${d.format('YYYY-MM-DDTHH:mm:ssZ')}
+draft: ${draft}
 ---
 `;
 }
@@ -66,5 +69,5 @@ export function parseFrontMatter(markdown: string): DiaryEntry {
 }
 
 export function generateMarkdown(entry: DiaryEntry): string {
-  return generateFrontMatter(entry.frontMatter.title, entry.frontMatter.date) + '\n' + entry.content;
+  return generateFrontMatter(entry.frontMatter.title, entry.frontMatter.date, entry.frontMatter.draft) + '\n' + entry.content;
 }

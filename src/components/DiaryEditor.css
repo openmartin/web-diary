@@ -59,6 +59,18 @@
   letter-spacing: 1px;
 }
 
+.new-entry-btn {
+  height: 42px !important;
+  font-weight: 600;
+  box-shadow: 0 6px 16px -6px rgba(15, 118, 110, 0.5);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.new-entry-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px -6px rgba(15, 118, 110, 0.55);
+}
+
 .sider-dates {
   flex: 1;
   min-height: 0;
@@ -111,13 +123,6 @@
   max-width: 980px;
   margin: 0 auto;
   box-shadow: 0 1px 2px rgba(16, 42, 37, 0.04), 0 8px 24px -12px rgba(16, 42, 37, 0.1);
-}
-
-.title-input {
-  flex: 1;
-  min-width: 240px;
-  font-size: 18px !important;
-  font-weight: 600;
 }
 
 .editor-actions {
