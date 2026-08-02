@@ -78,12 +78,27 @@ export const gitOps = {
     try {
       const dirPath = `${REPO_DIR}/content/posts/${year}`;
 
-      // Ensure directory exists using recursive mkdir
-      await fs.promises.mkdir(dirPath, { recursive: true });
+      // Ensure directory exists; ignore EEXIST (LightningFS may throw even with recursive)
+      try {
+        await fs.promises.mkdir(dirPath, { recursive: true });
+      } catch (mkdirErr: any) {
+        if (mkdirErr?.code !== 'EEXIST' && mkdirErr?.message !== 'EEXIST') {
+          throw mkdirErr;
+        }
+      }
 
-      // Write the file
+      // Write the file; if it already exists, remove first then rewrite
       const filePath = `${dirPath}/${date}.md`;
-      await fs.promises.writeFile(filePath, content, 'utf8');
+      try {
+        await fs.promises.writeFile(filePath, content, 'utf8');
+      } catch (writeErr: any) {
+        if (writeErr?.code === 'EEXIST' || writeErr?.message === 'EEXIST') {
+          await fs.promises.unlink(filePath);
+          await fs.promises.writeFile(filePath, content, 'utf8');
+        } else {
+          throw writeErr;
+        }
+      }
     } catch (error) {
       throw new Error(`Failed to write file: ${error instanceof Error ? error.message : String(error)}`);
     }

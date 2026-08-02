@@ -1,105 +1,118 @@
 import { useState } from 'react';
-import type { RepoConfig } from '../utils/storage';
+import { useNavigate } from 'react-router-dom';
+import { App, Button, Card, Col, Divider, Form, Input, Row, Steps, Typography } from 'antd';
+import {
+  BranchesOutlined,
+  GithubOutlined,
+  KeyOutlined,
+  LinkOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
+import { gitOps } from '../utils/git';
+import { storage, type RepoConfig } from '../utils/storage';
 import './RepoSetup.css';
 
+const { Title, Paragraph } = Typography;
+
 interface RepoSetupProps {
-  onSetup: (config: RepoConfig) => Promise<void>;
-  loading: boolean;
-  error: string | null;
+  onConnected: (config: RepoConfig) => void;
 }
 
-export default function RepoSetup({ onSetup, loading, error }: RepoSetupProps) {
-  const [token, setToken] = useState('');
-  const [owner, setOwner] = useState('');
-  const [repo, setRepo] = useState('');
-  const [branch, setBranch] = useState('main');
+export default function RepoSetup({ onConnected }: RepoSetupProps) {
+  const navigate = useNavigate();
+  const { message } = App.useApp();
+  const [connecting, setConnecting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token || !owner || !repo) {
-      alert('Please fill in all fields');
-      return;
+  const handleFinish = async (values: RepoConfig) => {
+    setConnecting(true);
+    try {
+      await gitOps.clone(values);
+      storage.setRepoConfig(values);
+      message.success('仓库连接成功，开始写作吧 ✍️');
+      onConnected(values);
+      navigate('/', { replace: true });
+    } catch (err) {
+      message.error(`连接失败：${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setConnecting(false);
     }
-    await onSetup({ token, owner, repo, branch });
   };
 
   return (
-    <div className="repo-setup">
-      <div className="repo-setup-card">
-        <h1>📔 Online Diary</h1>
-        <p>Connect to your GitHub repository to start writing</p>
-
-        {error && <div className="error">{error}</div>}
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="token">GitHub Token*</label>
-            <input
-              id="token"
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="ghp_..."
-              disabled={loading}
+    <div className="setup-page">
+      <Card className="setup-card" bordered={false}>
+        <Row>
+          <Col xs={24} md={11} className="setup-brand">
+            <div className="brand-logo">📔</div>
+            <Title level={2} className="brand-title">Online Diary</Title>
+            <Paragraph className="brand-desc">
+              存储在 GitHub 仓库里的在线日记本，
+              <br />
+              每一篇都可追溯版本，永不丢失。
+            </Paragraph>
+            <Divider className="brand-divider" />
+            <Steps
+              direction="vertical"
+              size="small"
+              items={[
+                { title: '创建仓库', description: '新建 GitHub 仓库，包含 content/posts/2026/ 目录结构' },
+                { title: '生成 Token', description: '在 GitHub Settings → Tokens 创建带 repo 权限的令牌' },
+                { title: '连接开始写作', description: '填写右侧表单，立即写下第一篇日记' },
+              ]}
             />
-            <small>
-              Create a token at <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">
-                github.com/settings/tokens
-              </a>
-            </small>
-          </div>
+          </Col>
 
-          <div className="form-group">
-            <label htmlFor="owner">Repository Owner*</label>
-            <input
-              id="owner"
-              type="text"
-              value={owner}
-              onChange={(e) => setOwner(e.target.value)}
-              placeholder="e.g., octocat"
-              disabled={loading}
-            />
-          </div>
+          <Col xs={24} md={13} className="setup-form">
+            <Title level={3}>连接你的仓库</Title>
+            <Paragraph type="secondary">Token 仅保存在浏览器 localStorage 中，不会上传到任何服务器</Paragraph>
 
-          <div className="form-group">
-            <label htmlFor="repo">Repository Name*</label>
-            <input
-              id="repo"
-              type="text"
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-              placeholder="e.g., my-diary"
-              disabled={loading}
-            />
-          </div>
+            <Form<RepoConfig>
+              layout="vertical"
+              requiredMark={false}
+              initialValues={{ branch: 'main' }}
+              onFinish={handleFinish}
+            >
+              <Form.Item
+                name="token"
+                label="GitHub Token"
+                rules={[{ required: true, message: '请输入 GitHub Token' }]}
+                extra={
+                  <span>
+                    还没有？去{' '}
+                    <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">
+                      github.com/settings/tokens
+                    </a>{' '}
+                    创建一个
+                  </span>
+                }
+              >
+                <Input.Password prefix={<KeyOutlined />} placeholder="ghp_..." autoComplete="off" />
+              </Form.Item>
 
-          <div className="form-group">
-            <label htmlFor="branch">Default Branch</label>
-            <input
-              id="branch"
-              type="text"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder="main"
-              disabled={loading}
-            />
-          </div>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="owner" label="仓库 Owner" rules={[{ required: true, message: '请输入仓库 Owner' }]}>
+                    <Input prefix={<UserOutlined />} placeholder="octocat" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="repo" label="仓库名" rules={[{ required: true, message: '请输入仓库名' }]}>
+                    <Input prefix={<GithubOutlined />} placeholder="my-diary" />
+                  </Form.Item>
+                </Col>
+              </Row>
 
-          <button type="submit" disabled={loading} className={loading ? 'loading' : ''}>
-            {loading ? 'Connecting...' : 'Connect Repository'}
-          </button>
-        </form>
+              <Form.Item name="branch" label="默认分支">
+                <Input prefix={<BranchesOutlined />} placeholder="main" />
+              </Form.Item>
 
-        <div className="info-box">
-          <h3>First time?</h3>
-          <ol>
-            <li>Create a new GitHub repository with folder structure: <code>content/posts/2026/</code></li>
-            <li>Create a personal access token with repo scope</li>
-            <li>Fill in the form above and connect</li>
-            <li>Start writing your diary!</li>
-          </ol>
-        </div>
-      </div>
+              <Button type="primary" htmlType="submit" size="large" block loading={connecting} icon={<LinkOutlined />}>
+                {connecting ? '正在连接…' : '连接仓库'}
+              </Button>
+            </Form>
+          </Col>
+        </Row>
+      </Card>
     </div>
   );
 }

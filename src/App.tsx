@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import './App.css';
+import { useEffect, useState } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { Flex, Spin, Typography } from 'antd';
 import { storage, type RepoConfig } from './utils/storage';
 import { gitOps } from './utils/git';
 import DiaryEditor from './components/DiaryEditor';
@@ -7,8 +8,6 @@ import RepoSetup from './components/RepoSetup';
 
 function App() {
   const [repoConfig, setRepoConfig] = useState<RepoConfig | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
 
   // On mount: validate stored config and local repo integrity
@@ -29,37 +28,39 @@ function App() {
     });
   }, []);
 
-  const handleConfigSetup = async (config: RepoConfig) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await gitOps.clone(config);
-      storage.setRepoConfig(config);
-      setRepoConfig(config);
-    } catch (err) {
-      setError(`Failed to setup repository: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    storage.clearAll();
-    setRepoConfig(null);
-  };
-
   if (checking) {
-    return <div className="app-container" style={{ padding: '2rem', textAlign: 'center' }}>Loading...</div>;
-  }
-
-  if (!repoConfig) {
-    return <RepoSetup onSetup={handleConfigSetup} loading={loading} error={error} />;
+    return (
+      <Flex vertical align="center" justify="center" gap={16} style={{ minHeight: '100vh' }}>
+        <Spin size="large" />
+        <Typography.Text type="secondary">正在检查仓库状态…</Typography.Text>
+      </Flex>
+    );
   }
 
   return (
-    <div className="app-container">
-      <DiaryEditor repoConfig={repoConfig} onLogout={handleLogout} />
-    </div>
+    <Routes>
+      <Route
+        path="/setup"
+        element={repoConfig ? <Navigate to="/" replace /> : <RepoSetup onConnected={setRepoConfig} />}
+      />
+      <Route
+        path="/"
+        element={
+          repoConfig ? (
+            <DiaryEditor
+              repoConfig={repoConfig}
+              onLogout={() => {
+                storage.clearAll();
+                setRepoConfig(null);
+              }}
+            />
+          ) : (
+            <Navigate to="/setup" replace />
+          )
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 

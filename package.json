@@ -10,11 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.3.2",
     "@isomorphic-git/lightning-fs": "^4.7.0",
+    "antd": "^5.29.3",
+    "dayjs": "^1.11.21",
     "isomorphic-git": "^1.40.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.18.2",
     "remark-gfm": "^4.0.1",
     "simple-git": "^3.36.0"
   },
