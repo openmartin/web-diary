@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
-  App, Button, Card, DatePicker, Empty, Flex, Layout, List, Select, Spin, Typography,
+  App, Button, Card, DatePicker, Drawer, Empty, Flex, Layout, List, Select, Spin, Typography,
 } from 'antd';
 import {
   CheckOutlined, CloudUploadOutlined, FileTextOutlined,
-  GithubOutlined, LogoutOutlined, PlusOutlined, SaveOutlined,
+  GithubOutlined, LogoutOutlined, MenuOutlined, PlusOutlined, SaveOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { storage, type RepoConfig } from '../utils/storage';
 import { gitOps } from '../utils/git';
 import { parseFrontMatter, generateFrontMatter } from '../utils/markdown';
+import { useIsMobile } from '../hooks/useIsMobile';
 import MarkdownEditor from './MarkdownEditor';
 import './DiaryEditor.css';
 
@@ -23,6 +24,8 @@ interface DiaryEditorProps {
 
 export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) {
   const { message } = App.useApp();
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [years, setYears] = useState<string[]>([]);
   const [dates, setDates] = useState<string[]>([]);
@@ -169,80 +172,116 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
     }
   };
 
+  // Sidebar content shared between Sider (desktop) and Drawer (mobile)
+  const sidebarContent = (
+    <>
+      <Button
+        type="primary"
+        size="large"
+        block
+        icon={<PlusOutlined />}
+        onClick={() => { handleQuickNew(); setDrawerOpen(false); }}
+        className="new-entry-btn"
+      >
+        新增今日日记
+      </Button>
+
+      <div className="sider-block">
+        <Text type="secondary" className="sider-label">年份</Text>
+        <Select
+          value={selectedYear}
+          onChange={(v) => { setSelectedYear(v); setDrawerOpen(false); }}
+          style={{ width: '100%' }}
+          options={years.map((y) => ({ label: `${y} 年`, value: y }))}
+        />
+      </div>
+
+      <div className="sider-block">
+        <Text type="secondary" className="sider-label">或选择指定日期</Text>
+        <DatePicker
+          style={{ width: '100%' }}
+          placeholder="选择日期开始写"
+          suffixIcon={<PlusOutlined />}
+          value={null}
+          onChange={(d) => { handleNewDate(d); setDrawerOpen(false); }}
+          allowClear={false}
+        />
+      </div>
+
+      <div className="sider-block sider-dates">
+        <Text type="secondary" className="sider-label">全部日记（{dates.length}）</Text>
+        <List
+          className="date-list"
+          dataSource={[...dates].sort().reverse()}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="这一年还没有日记" /> }}
+          renderItem={(date) => (
+            <List.Item
+              className={date === selectedDate ? 'date-item date-item-active' : 'date-item'}
+              onClick={() => {
+                setCreatingNew(false);
+                setSelectedDate(date);
+                setDrawerOpen(false);
+              }}
+            >
+              <FileTextOutlined className="date-item-icon" />
+              {date}
+            </List.Item>
+          )}
+        />
+      </div>
+    </>
+  );
+
   return (
     <Layout className="diary-layout">
       <Header className="editor-header">
-        <Flex align="center" gap={12}>
+        <Flex align="center" gap={isMobile ? 8 : 12}>
+          {isMobile && (
+            <Button
+              type="text"
+              className="header-menu-btn"
+              icon={<MenuOutlined />}
+              onClick={() => setDrawerOpen(true)}
+            />
+          )}
           <span className="header-logo">📔</span>
           <div className="header-meta">
             <Text className="header-title">Online Diary</Text>
-            <Text className="header-repo">
-              <GithubOutlined /> {repoConfig.owner}/{repoConfig.repo}
-              <span className="header-branch">@{repoConfig.branch}</span>
-            </Text>
+            {!isMobile && (
+              <Text className="header-repo">
+                <GithubOutlined /> {repoConfig.owner}/{repoConfig.repo}
+                <span className="header-branch">@{repoConfig.branch}</span>
+              </Text>
+            )}
           </div>
         </Flex>
-        <Button ghost icon={<LogoutOutlined />} onClick={onLogout}>
-          退出登录
+        <Button ghost size={isMobile ? 'small' : 'middle'} icon={<LogoutOutlined />} onClick={onLogout}>
+          {isMobile ? '' : '退出登录'}
         </Button>
       </Header>
 
       <Layout>
-        <Sider width={264} theme="light" className="editor-sider">
-          <Button
-            type="primary"
-            size="large"
-            block
-            icon={<PlusOutlined />}
-            onClick={handleQuickNew}
-            className="new-entry-btn"
+        {/* Desktop: fixed sider */}
+        {!isMobile && (
+          <Sider width={264} theme="light" className="editor-sider">
+            {sidebarContent}
+          </Sider>
+        )}
+
+        {/* Mobile: drawer */}
+        {isMobile && (
+          <Drawer
+            title="日记导航"
+            placement="left"
+            open={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            width={280}
+            styles={{ body: { padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 } }}
+            className="mobile-drawer"
           >
-            新增今日日记
-          </Button>
-
-          <div className="sider-block">
-            <Text type="secondary" className="sider-label">年份</Text>
-            <Select
-              value={selectedYear}
-              onChange={setSelectedYear}
-              style={{ width: '100%' }}
-              options={years.map((y) => ({ label: `${y} 年`, value: y }))}
-            />
-          </div>
-
-          <div className="sider-block">
-            <Text type="secondary" className="sider-label">或选择指定日期</Text>
-            <DatePicker
-              style={{ width: '100%' }}
-              placeholder="选择日期开始写"
-              suffixIcon={<PlusOutlined />}
-              value={null}
-              onChange={handleNewDate}
-              allowClear={false}
-            />
-          </div>
-
-          <div className="sider-block sider-dates">
-            <Text type="secondary" className="sider-label">全部日记（{dates.length}）</Text>
-            <List
-              className="date-list"
-              dataSource={[...dates].sort().reverse()}
-              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="这一年还没有日记" /> }}
-              renderItem={(date) => (
-                <List.Item
-                  className={date === selectedDate ? 'date-item date-item-active' : 'date-item'}
-                  onClick={() => {
-                    setCreatingNew(false);
-                    setSelectedDate(date);
-                  }}
-                >
-                  <FileTextOutlined className="date-item-icon" />
-                  {date}
-                </List.Item>
-              )}
-            />
-          </div>
-        </Sider>
+            {sidebarContent}
+          </Drawer>
+        )}
 
         <Content className="editor-content">
           {loading ? (
@@ -251,29 +290,32 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
             </Flex>
           ) : (
             <Card className="editor-card" bordered={false}>
-              <Flex vertical gap={16}>
+              <Flex vertical gap={isMobile ? 12 : 16}>
                 <MarkdownEditor
                   content={content}
                   onChange={setContent}
                   fileName={selectedDate ? `${selectedDate}.md` : undefined}
                 />
-
-                <Flex justify="flex-end" gap={8} className="editor-actions">
-                  <Button icon={<SaveOutlined />} onClick={handleSaveDraft} disabled={saving || pushing}>
-                    保存草稿
-                  </Button>
-                  <Button type="primary" icon={<CheckOutlined />} loading={saving} disabled={pushing} onClick={handleCommit}>
-                    保存并提交
-                  </Button>
-                  <Button icon={<CloudUploadOutlined />} loading={pushing} disabled={saving} onClick={handlePush}>
-                    Push 到 GitHub
-                  </Button>
-                </Flex>
               </Flex>
             </Card>
           )}
         </Content>
       </Layout>
+
+      {/* Action bar: fixed bottom on mobile, inline on desktop */}
+      {!loading && (
+        <div className={isMobile ? 'editor-actions-bar mobile-fixed' : 'editor-actions-bar'}>
+          <Button icon={<SaveOutlined />} onClick={handleSaveDraft} disabled={saving || pushing} block={isMobile}>
+            草稿
+          </Button>
+          <Button type="primary" icon={<CheckOutlined />} loading={saving} disabled={pushing} onClick={handleCommit} block={isMobile}>
+            提交
+          </Button>
+          <Button icon={<CloudUploadOutlined />} loading={pushing} disabled={saving} onClick={handlePush} block={isMobile}>
+            Push
+          </Button>
+        </div>
+      )}
     </Layout>
   );
 }

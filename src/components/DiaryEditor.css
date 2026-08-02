@@ -125,7 +125,89 @@
   box-shadow: 0 1px 2px rgba(16, 42, 37, 0.04), 0 8px 24px -12px rgba(16, 42, 37, 0.1);
 }
 
-.editor-actions {
-  border-top: 1px dashed #dfe6e0;
-  padding-top: 16px;
+/* Action bar (shared desktop/mobile) */
+.editor-actions-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 12px 24px 24px;
+  width: 100%;
+}
+
+.editor-actions-bar.mobile-fixed {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid #e7ebe7;
+  box-shadow: 0 -4px 16px rgba(14, 36, 32, 0.08);
+  max-width: none;
+}
+
+/* Header menu button (mobile) */
+.header-menu-btn {
+  color: #fff !important;
+  font-size: 18px;
+  width: 36px;
+  height: 36px;
+}
+
+.header-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Mobile drawer */
+.mobile-drawer .sider-dates {
+  flex: 1;
+  min-height: 0;
+}
+
+.mobile-drawer .date-list {
+  max-height: 40vh;
+}
+
+/* ===== Mobile responsive ===== */
+@media (max-width: 768px) {
+  .editor-header {
+    padding: 0 12px !important;
+  }
+
+  .header-logo {
+    font-size: 22px;
+  }
+
+  .header-title {
+    font-size: 14px;
+  }
+
+  .editor-content {
+    padding: 12px 10px 90px; /* bottom padding for fixed action bar */
+  }
+
+  .editor-card {
+    box-shadow: none;
+    border-radius: 12px;
+  }
+
+  .editor-card > .ant-card-body {
+    padding: 14px;
+  }
+
+  .editor-loading {
+    min-height: 50vh;
+  }
+
+  .new-entry-btn {
+    height: 40px !important;
+  }
 }

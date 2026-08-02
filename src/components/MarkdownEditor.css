@@ -197,3 +197,55 @@
   border-top: 1px dashed #d5ded8;
   margin: 1.5em 0;
 }
+
+/* ===== Mobile responsive ===== */
+@media (max-width: 768px) {
+  .editor-textarea {
+    font-size: 13px !important;
+    line-height: 1.75 !important;
+  }
+
+  .markdown-preview {
+    min-height: 280px;
+    max-height: none;
+    padding: 16px;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+
+  .preview-title {
+    font-size: 22px;
+  }
+
+  .preview-header {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+  }
+
+  .file-bar {
+    font-size: 11.5px;
+    padding: 3px 10px;
+  }
+
+  .markdown-preview h1 {
+    font-size: 20px;
+  }
+
+  .markdown-preview h2 {
+    font-size: 17px;
+  }
+
+  .markdown-preview h3 {
+    font-size: 15px;
+  }
+
+  .markdown-preview pre {
+    padding: 12px;
+    font-size: 12px;
+  }
+
+  .markdown-preview table {
+    display: block;
+    overflow-x: auto;
+  }
+}

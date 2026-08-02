@@ -8,6 +8,7 @@ html,
 body,
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 body {
@@ -16,8 +17,27 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #f2f5f1;
+  overscroll-behavior-y: none;
 }
 
 ::selection {
   background: rgba(15, 118, 110, 0.2);
+}
+
+/* Mobile: prevent iOS rubber-band and improve touch targets */
+@media (max-width: 768px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Ensure tap targets are at least 44px */
+  .ant-btn {
+    min-height: 36px;
+  }
+
+  .ant-list-item {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+  }
 }
