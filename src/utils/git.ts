@@ -14,6 +14,79 @@ export interface GitRepoInfo {
 
 const REPO_DIR = '/repo';
 
+// ─── Rebase helpers ───────────────────────────────────────────────────────────
+
+/** Recursively collect all file paths and their blob OIDs from a tree */
+async function collectTreeFiles(
+  treeOid: string,
+  prefix = '',
+): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  const { tree } = await git.readTree({ fs, oid: treeOid });
+  for (const entry of tree) {
+    const path = prefix ? `${prefix}/${entry.path}` : entry.path;
+    if (entry.type === 'tree') {
+      const sub = await collectTreeFiles(entry.oid, path);
+      for (const [k, v] of sub) files.set(k, v);
+    } else {
+      files.set(path, entry.oid);
+    }
+  }
+  return files;
+}
+
+/**
+ * Compute the diff between parent tree and commit tree,
+ * then apply changes (add/modify/delete) to the working directory.
+ */
+async function applyCommitChanges(commitOid: string): Promise<void> {
+  const { commit } = await git.readCommit({ fs, oid: commitOid });
+  const currentFiles = await collectTreeFiles(commit.tree);
+
+  let parentFiles = new Map<string, string>();
+  if (commit.parent.length > 0) {
+    try {
+      const { commit: parentCommit } = await git.readCommit({ fs, oid: commit.parent[0] });
+      parentFiles = await collectTreeFiles(parentCommit.tree);
+    } catch {
+      // Parent not available (shallow clone) — treat all files as additions
+    }
+  }
+
+  // Apply additions and modifications
+  for (const [path, oid] of currentFiles) {
+    if (parentFiles.get(path) !== oid) {
+      const { blob } = await git.readBlob({ fs, oid });
+      const filePath = `${REPO_DIR}/${path}`;
+      const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
+      try {
+        await fs.promises.mkdir(dirPath, { recursive: true });
+      } catch { /* dir may already exist */ }
+      try {
+        await fs.promises.writeFile(filePath, new TextDecoder().decode(blob));
+      } catch {
+        await fs.promises.unlink(filePath);
+        await fs.promises.writeFile(filePath, new TextDecoder().decode(blob));
+      }
+      await git.add({ fs, dir: REPO_DIR, filepath: path } as any);
+    }
+  }
+
+  // Apply deletions
+  for (const [path] of parentFiles) {
+    if (!currentFiles.has(path)) {
+      try {
+        await fs.promises.unlink(`${REPO_DIR}/${path}`);
+      } catch { /* file may not exist in working dir */ }
+      try {
+        await git.remove({ fs, dir: REPO_DIR, filepath: path } as any);
+      } catch { /* may not be in index */ }
+    }
+  }
+}
+
+// ─── Main git operations ──────────────────────────────────────────────────────
+
 export const gitOps = {
   async clone(repoInfo: GitRepoInfo): Promise<void> {
     try {
@@ -131,8 +204,87 @@ export const gitOps = {
     }
   },
 
+  /**
+   * Pull with rebase: fetch remote changes and replay local commits on top.
+   * No merge commits are created — keeps a linear history.
+   * Returns true if the local branch was updated, false if already up-to-date.
+   */
+  async pull(token: string, branch: string): Promise<boolean> {
+    try {
+      // 1. Fetch remote refs and objects
+      await git.fetch({
+        fs,
+        http,
+        dir: REPO_DIR,
+        remote: 'origin',
+        ref: branch,
+        depth: 20,
+        singleBranch: true,
+        headers: {
+          Authorization: `Basic ${btoa(`x-access-token:${token}`)}`,
+        },
+      } as any);
+
+      // 2. Resolve local HEAD and remote tracking branch
+      const localOid = await git.resolveRef({ fs, dir: REPO_DIR, ref: 'HEAD' });
+      const remoteOid = await git.resolveRef({ fs, dir: REPO_DIR, ref: `origin/${branch}` });
+
+      // Already up-to-date
+      if (localOid === remoteOid) return false;
+
+      // 3. Collect local-only commits (reachable from HEAD but not from remote)
+      const remoteAncestors = new Set<string>();
+      try {
+        const remoteLog = await git.log({ fs, dir: REPO_DIR, ref: `origin/${branch}`, depth: 50 });
+        for (const entry of remoteLog) remoteAncestors.add(entry.oid);
+      } catch { /* remote log unavailable */ }
+
+      const localCommits: string[] = [];
+      const localLog = await git.log({ fs, dir: REPO_DIR, ref: 'HEAD', depth: 50 });
+      for (const entry of localLog) {
+        if (remoteAncestors.has(entry.oid)) break;
+        localCommits.push(entry.oid);
+      }
+
+      // 4. Fast-forward: no local-only commits, just advance to remote
+      if (localCommits.length === 0) {
+        await git.checkout({ fs, dir: REPO_DIR, ref: branch, force: true } as any);
+        return true;
+      }
+
+      // 5. Rebase: reset to remote tip, then replay local commits on top
+      await git.checkout({ fs, dir: REPO_DIR, ref: branch, force: true } as any);
+
+      // Replay in chronological order (oldest first)
+      for (const oid of [...localCommits].reverse()) {
+        const { commit } = await git.readCommit({ fs, oid });
+
+        // Apply this commit's tree diff to the working directory
+        await applyCommitChanges(oid);
+
+        // Re-create the commit with original message and author
+        await git.commit({
+          fs,
+          dir: REPO_DIR,
+          message: commit.message,
+          author: commit.author,
+        } as any);
+      }
+
+      return true;
+    } catch (error) {
+      throw new Error(`Failed to pull: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  },
+
+  /**
+   * Push with automatic rebase-pull first to avoid non-fast-forward rejection.
+   */
   async push(token: string, branch: string): Promise<void> {
     try {
+      // Auto-sync: rebase local commits on top of remote before pushing
+      await this.pull(token, branch);
+
       await git.push({
         fs,
         http,

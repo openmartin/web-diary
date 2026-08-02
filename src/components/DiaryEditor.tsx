@@ -3,7 +3,7 @@ import {
   App, Button, Card, DatePicker, Drawer, Empty, Flex, Layout, List, Select, Spin, Typography,
 } from 'antd';
 import {
-  CheckOutlined, CloudUploadOutlined, FileTextOutlined,
+  CheckOutlined, CloudSyncOutlined, CloudUploadOutlined, FileTextOutlined,
   GithubOutlined, LogoutOutlined, MenuOutlined, PlusOutlined, SaveOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -35,7 +35,23 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [creatingNew, setCreatingNew] = useState(false);
+
+  // Auto-sync on mount: pull remote changes in background
+  useEffect(() => {
+    gitOps.pull(repoConfig.token, repoConfig.branch)
+      .then((updated) => {
+        if (updated) {
+          message.info('已从 GitHub 同步最新内容');
+          loadYears();
+          loadDates(selectedYear);
+        }
+      })
+      .catch(() => {
+        // Silent fail on auto-sync (network issues, etc.)
+      });
+  }, []);
 
   useEffect(() => {
     loadYears();
@@ -157,6 +173,28 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
       message.error('提交失败：' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const updated = await gitOps.pull(repoConfig.token, repoConfig.branch);
+      if (updated) {
+        message.success('已同步 GitHub 最新内容');
+        // Refresh file list and current content
+        await loadYears();
+        await loadDates(selectedYear);
+        if (selectedDate) {
+          loadDiaryContent(selectedYear, selectedDate);
+        }
+      } else {
+        message.info('已是最新，无需同步');
+      }
+    } catch (err) {
+      message.error('同步失败：' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -305,13 +343,16 @@ export default function DiaryEditor({ repoConfig, onLogout }: DiaryEditorProps) 
       {/* Action bar: fixed bottom on mobile, inline on desktop */}
       {!loading && (
         <div className={isMobile ? 'editor-actions-bar mobile-fixed' : 'editor-actions-bar'}>
-          <Button icon={<SaveOutlined />} onClick={handleSaveDraft} disabled={saving || pushing} block={isMobile}>
+          <Button icon={<CloudSyncOutlined spin={syncing} />} onClick={handleSync} disabled={saving || pushing} block={isMobile}>
+            同步
+          </Button>
+          <Button icon={<SaveOutlined />} onClick={handleSaveDraft} disabled={saving || pushing || syncing} block={isMobile}>
             草稿
           </Button>
-          <Button type="primary" icon={<CheckOutlined />} loading={saving} disabled={pushing} onClick={handleCommit} block={isMobile}>
+          <Button type="primary" icon={<CheckOutlined />} loading={saving} disabled={pushing || syncing} onClick={handleCommit} block={isMobile}>
             提交
           </Button>
-          <Button icon={<CloudUploadOutlined />} loading={pushing} disabled={saving} onClick={handlePush} block={isMobile}>
+          <Button icon={<CloudUploadOutlined />} loading={pushing} disabled={saving || syncing} onClick={handlePush} block={isMobile}>
             Push
           </Button>
         </div>
