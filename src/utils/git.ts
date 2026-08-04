@@ -22,7 +22,7 @@ async function collectTreeFiles(
   prefix = '',
 ): Promise<Map<string, string>> {
   const files = new Map<string, string>();
-  const { tree } = await git.readTree({ fs, oid: treeOid });
+  const { tree } = await git.readTree({ fs, dir: REPO_DIR, oid: treeOid });
   for (const entry of tree) {
     const path = prefix ? `${prefix}/${entry.path}` : entry.path;
     if (entry.type === 'tree') {
@@ -40,13 +40,13 @@ async function collectTreeFiles(
  * then apply changes (add/modify/delete) to the working directory.
  */
 async function applyCommitChanges(commitOid: string): Promise<void> {
-  const { commit } = await git.readCommit({ fs, oid: commitOid });
+  const { commit } = await git.readCommit({ fs, dir: REPO_DIR, oid: commitOid });
   const currentFiles = await collectTreeFiles(commit.tree);
 
   let parentFiles = new Map<string, string>();
   if (commit.parent.length > 0) {
     try {
-      const { commit: parentCommit } = await git.readCommit({ fs, oid: commit.parent[0] });
+      const { commit: parentCommit } = await git.readCommit({ fs, dir: REPO_DIR, oid: commit.parent[0] });
       parentFiles = await collectTreeFiles(parentCommit.tree);
     } catch {
       // Parent not available (shallow clone) — treat all files as additions
@@ -56,7 +56,7 @@ async function applyCommitChanges(commitOid: string): Promise<void> {
   // Apply additions and modifications
   for (const [path, oid] of currentFiles) {
     if (parentFiles.get(path) !== oid) {
-      const { blob } = await git.readBlob({ fs, oid });
+      const { blob } = await git.readBlob({ fs, dir: REPO_DIR, oid });
       const filePath = `${REPO_DIR}/${path}`;
       const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
       try {
@@ -246,18 +246,26 @@ export const gitOps = {
         localCommits.push(entry.oid);
       }
 
-      // 4. Fast-forward: no local-only commits, just advance to remote
+      // 4. Reset local branch to remote tip: move the branch ref first,
+      // then checkout so both working directory and index are updated.
+      await git.writeRef({
+        fs,
+        dir: REPO_DIR,
+        ref: `refs/heads/${branch}`,
+        value: remoteOid,
+        force: true,
+      } as any);
+      await git.checkout({ fs, dir: REPO_DIR, ref: branch, force: true } as any);
+
+      // Fast-forward: no local-only commits, we are done
       if (localCommits.length === 0) {
-        await git.checkout({ fs, dir: REPO_DIR, ref: branch, force: true } as any);
         return true;
       }
 
-      // 5. Rebase: reset to remote tip, then replay local commits on top
-      await git.checkout({ fs, dir: REPO_DIR, ref: branch, force: true } as any);
-
+      // 5. Rebase: replay local commits on top of the remote tip
       // Replay in chronological order (oldest first)
       for (const oid of [...localCommits].reverse()) {
-        const { commit } = await git.readCommit({ fs, oid });
+        const { commit } = await git.readCommit({ fs, dir: REPO_DIR, oid });
 
         // Apply this commit's tree diff to the working directory
         await applyCommitChanges(oid);
